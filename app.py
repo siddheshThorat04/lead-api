@@ -52,7 +52,7 @@ def create_lead():
         }
 
         if email:
-            lead_payload["email_id"] = email
+            lead_payload["email"] = email
 
         resp = requests.post(
             f"{ERPNEXT_URL}/api/resource/CRM Lead",
