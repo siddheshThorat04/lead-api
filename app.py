@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
@@ -48,7 +49,6 @@ def create_lead():
             "mobile_no": phone,
             "source": "Website",
             "request_type": "Other",
-            "notes": f"Contact form submission from website.\n\nMessage:\n{message or '(no message provided)'}",
         }
 
         if email:
@@ -75,6 +75,32 @@ def create_lead():
             return jsonify({"error": "Failed to create lead"}), 502
 
         lead_id = (result.get("data") or {}).get("name")
+
+        # Attach the visitor's message as a linked Note on the lead.
+        if lead_id and message:
+            try:
+                timestamp_label = datetime.now().strftime("%b %d, %Y %I:%M %p")
+                note_payload = {
+                    "doctype": "FCRM Note",
+                    "reference_doctype": "CRM Lead",
+                    "reference_docname": lead_id,
+                    "title": f"Website Enquiry - {timestamp_label}",
+                    "content": f"<p>{message}</p>",
+                }
+                note_resp = requests.post(
+                    f"{ERPNEXT_URL}/api/resource/FCRM Note",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": auth_header,
+                    },
+                    json=note_payload,
+                    timeout=15,
+                )
+                if not note_resp.ok:
+                    logger.error("Note creation failed: %s", note_resp.text)
+            except requests.RequestException:
+                logger.exception("Note creation request failed")
+
         return jsonify({"success": True, "leadId": lead_id})
 
     except requests.RequestException as e:
